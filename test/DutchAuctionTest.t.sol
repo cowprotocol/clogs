@@ -23,7 +23,15 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         dutchAuction = new DutchAuction(ComposableCoW(COMPOSABLE_COW));
     }
 
-    function test_limitPriceAtStart_concrete() public {
+    function mockCowCabinet(address mock, address owner, bytes32 ctx, bytes32 retVal)
+        internal
+        returns (ComposableCoW iface) 
+    {
+        iface = ComposableCoW(mock);
+        vm.mockCall(mock, abi.encodeWithSelector(iface.cabinet.selector, owner, ctx), abi.encode(retVal));
+    }
+
+    function test_pricing_LimitPriceAtStart_concrete() public {
         DutchAuction.Data memory data = helper_testData();
         vm.warp(data.startTime);
 
@@ -33,7 +41,7 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         assertEq(res.buyAmount, 10 ether);
     }
 
-    function test_limitPriceAtEnd_concrete() public {
+    function test_pricing_LimitPriceAtEnd_concrete() public {
         DutchAuction.Data memory data = helper_testData();
         vm.warp(data.startTime - 1 + data.stepDuration * data.numSteps);
 
@@ -43,7 +51,7 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         assertEq(res.buyAmount, 9 ether);
     }
 
-    function test_limitPriceAtMiddle_concrete() public {
+    function test_pricing_LimitPriceAtMiddle_concrete() public {
         DutchAuction.Data memory data = helper_testData();
         vm.warp(data.startTime - 1 + data.stepDuration * (data.numSteps / 2));
 
@@ -65,6 +73,97 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         vm.warp(1_000_000 + 79);
 
         dutchAuction.verify(safe, address(0), hash_, domainSeparator, bytes32(0), abi.encode(data), bytes(""), empty);
+    }
+
+    function test_startMiningTime() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.startTime = 0;
+
+        uint32 startTimeInCtx = 10_000;
+        bytes32 id = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
+
+        dutchAuction = new DutchAuction(mockCowCabinet(COMPOSABLE_COW, safe, id, bytes32(uint256(startTimeInCtx))));
+
+        // if before start time, should revert
+        vm.warp(startTimeInCtx - 1);
+        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollTryAtEpoch.selector, startTimeInCtx, AUCTION_NOT_STARTED));
+        dutchAuction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
+
+        // advance to the start of the dutch auction
+        vm.warp(startTimeInCtx);
+        // the following should no longer revert as the conditions are met
+        dutchAuction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
+    }
+
+    function test_timing_RevertBeforeAuctionStarted() public {
+        DutchAuction.Data memory data = helper_testData();
+        vm.warp(data.startTime - 1);
+
+        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollTryAtEpoch.selector, data.startTime, AUCTION_NOT_STARTED));
+        dutchAuction.getTradeableOrder(safe, address(0), bytes32(0), abi.encode(data), bytes(""));
+    }
+
+    function test_timing_RevertBeforeAuctionStartedMiningTime() public {
+        revert("TODO");
+    }
+
+    function test_timing_RevertAfterAuctionFinished() public {
+        DutchAuction.Data memory data = helper_testData();
+        vm.warp(data.startTime + (data.numSteps * data.stepDuration));
+
+        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollNever.selector, AUCTION_ENDED));
+        dutchAuction.getTradeableOrder(safe, address(0), bytes32(0), abi.encode(data), bytes(""));
+    }
+
+    function test_timing_RevertAfterAuctionFinishedMiningTime() public {
+        revert("TODO");
+    }
+
+    function test_validation_RevertWhenSellTokenEqualsBuyToken() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.sellToken = data.buyToken;
+
+        helper_runRevertingValidate(data, ERR_SAME_TOKENS);
+    }
+
+    function test_validation_RevertWhenSellAmountInvalid() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.sellAmount = 0;
+
+        helper_runRevertingValidate(data, ERR_MIN_SELL_AMOUNT);
+    }
+
+    function test_validation_RevertWhenZeroDuration() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.stepDuration = 0;
+
+        helper_runRevertingValidate(data, ERR_MIN_AUCTION_DURATION);
+    }
+
+    function test_validation_RevertWhenNoDiscount() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.stepDiscount = 0;
+
+        helper_runRevertingValidate(data, ERR_MIN_STEP_DISCOUNT);
+    }
+
+    function test_validation_RevertWhenDiscountTooHigh() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.stepDiscount = 10000;
+
+        helper_runRevertingValidate(data, ERR_MAX_STEP_DISCOUNT);
+    }
+
+    function test_validation_RevertWhenStepsInsufficient() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.numSteps = 1;
+
+        helper_runRevertingValidate(data, ERR_MIN_NUM_STEPS);
+    }
+
+    function helper_runRevertingValidate(DutchAuction.Data memory data, string memory reason) internal {
+        vm.expectRevert(abi.encodeWithSelector(IConditionalOrder.OrderNotValid.selector, reason));
+        dutchAuction.validateData(abi.encode(data));
     }
 
     function helper_testData() internal view returns (DutchAuction.Data memory data) {
