@@ -87,7 +87,7 @@ contract DutchAuction is BaseConditionalOrder {
 
         // `startTime` for the auction is either when the was mined or a specific start time
         if (data.startTime == 0) {
-            data.startTime = uint32(bytes4(composableCow.cabinet(owner, ctx)));
+            data.startTime = uint32(uint256(composableCow.cabinet(owner, ctx)));
         }
 
         // woah there! you're too early and the auction hasn't started. Come back later.
