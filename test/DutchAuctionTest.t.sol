@@ -172,6 +172,38 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         helper_runRevertingValidate(data, ERR_MIN_NUM_STEPS);
     }
 
+    function test_e2e_settle() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.sellToken = token0;
+        data.buyToken = token1;
+
+        // create the order
+        IConditionalOrder.ConditionalOrderParams memory params =
+            super.createOrder(dutchAuction, keccak256("dutchAuction"), abi.encode(data));
+
+        // create the order
+        _create(address(safe1), params, false);
+        // deal the sell token to the safe
+        deal(address(data.sellToken), address(safe1), data.sellAmount);
+        // authorise the vault relayer to pull the sell token from the safe
+        vm.prank(address(safe1));
+        data.sellToken.approve(address(relayer), data.sellAmount);
+
+        // make sure we're at the start of the auction
+        vm.warp(data.startTime);
+
+        (GPv2Order.Data memory order, bytes memory sig) =
+            composableCow.getTradeableOrderWithSignature(address(safe1), params, bytes(""), new bytes32[](0));
+
+        uint256 safe1BalanceBefore = data.sellToken.balanceOf(address(safe1));
+
+        settle(address(safe1), bob, order, sig, bytes4(0));
+
+        uint256 safe1BalanceAfter = data.sellToken.balanceOf(address(safe1));
+
+        assertEq(safe1BalanceAfter, safe1BalanceBefore - data.sellAmount);
+    }
+
     function helper_runRevertingValidate(DutchAuction.Data memory data, string memory reason) internal {
         vm.expectRevert(abi.encodeWithSelector(IConditionalOrder.OrderNotValid.selector, reason));
         dutchAuction.validateData(abi.encode(data));
