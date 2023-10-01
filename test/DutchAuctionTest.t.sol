@@ -25,7 +25,7 @@ contract DutchAuctionTest is BaseComposableCoWTest {
 
     function mockCowCabinet(address mock, address owner, bytes32 ctx, bytes32 retVal)
         internal
-        returns (ComposableCoW iface) 
+        returns (ComposableCoW iface)
     {
         iface = ComposableCoW(mock);
         vm.mockCall(mock, abi.encodeWithSelector(iface.cabinet.selector, owner, ctx), abi.encode(retVal));
@@ -86,7 +86,9 @@ contract DutchAuctionTest is BaseComposableCoWTest {
 
         // if before start time, should revert
         vm.warp(startTimeInCtx - 1);
-        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollTryAtEpoch.selector, startTimeInCtx, AUCTION_NOT_STARTED));
+        vm.expectRevert(
+            abi.encodeWithSelector(IConditionalOrder.PollTryAtEpoch.selector, startTimeInCtx, AUCTION_NOT_STARTED)
+        );
         dutchAuction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
 
         // advance to the start of the dutch auction
@@ -99,11 +101,13 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         DutchAuction.Data memory data = helper_testData();
         vm.warp(data.startTime - 1);
 
-        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollTryAtEpoch.selector, data.startTime, AUCTION_NOT_STARTED));
+        vm.expectRevert(
+            abi.encodeWithSelector(IConditionalOrder.PollTryAtEpoch.selector, data.startTime, AUCTION_NOT_STARTED)
+        );
         dutchAuction.getTradeableOrder(safe, address(0), bytes32(0), abi.encode(data), bytes(""));
     }
 
-    function test_timing_RevertBeforeAuctionStartedMiningTime() public {
+    function test_timing_RevertBeforeAuctionStartedMiningTime() public pure {
         revert("TODO");
     }
 
@@ -111,11 +115,11 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         DutchAuction.Data memory data = helper_testData();
         vm.warp(data.startTime + (data.numSteps * data.stepDuration));
 
-        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollNever.selector, AUCTION_ENDED));
+        vm.expectRevert(abi.encodeWithSelector(IConditionalOrder.PollNever.selector, AUCTION_ENDED));
         dutchAuction.getTradeableOrder(safe, address(0), bytes32(0), abi.encode(data), bytes(""));
     }
 
-    function test_timing_RevertAfterAuctionFinishedMiningTime() public {
+    function test_timing_RevertAfterAuctionFinishedMiningTime() public pure {
         revert("TODO");
     }
 
