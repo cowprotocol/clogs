@@ -76,39 +76,34 @@ contract DutchAuctionTest is BaseComposableCoWTest {
     }
 
     function test_startMiningTime() public {
-        DutchAuction.Data memory data = helper_testData();
-        data.startTime = 0;
-
-        uint32 startTimeInCtx = 10_000;
-        bytes32 id = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
-
-        dutchAuction = new DutchAuction(mockCowCabinet(COMPOSABLE_COW, safe, id, bytes32(uint256(startTimeInCtx))));
-
-        // if before start time, should revert
-        vm.warp(startTimeInCtx - 1);
-        vm.expectRevert(
-            abi.encodeWithSelector(IConditionalOrder.PollTryAtEpoch.selector, startTimeInCtx, AUCTION_NOT_STARTED)
-        );
-        dutchAuction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
+        (DutchAuction.Data memory data, bytes32 id, DutchAuction auction, uint256 startTime) = helper_miningTime();
 
         // advance to the start of the dutch auction
-        vm.warp(startTimeInCtx);
+        vm.warp(startTime);
         // the following should no longer revert as the conditions are met
-        dutchAuction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
+        auction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
     }
 
     function test_timing_RevertBeforeAuctionStarted() public {
         DutchAuction.Data memory data = helper_testData();
-        vm.warp(data.startTime - 1);
 
+        // if before start time, should revert
+        vm.warp(data.startTime - 1);
         vm.expectRevert(
             abi.encodeWithSelector(IConditionalOrder.PollTryAtEpoch.selector, data.startTime, AUCTION_NOT_STARTED)
         );
         dutchAuction.getTradeableOrder(safe, address(0), bytes32(0), abi.encode(data), bytes(""));
     }
 
-    function test_timing_RevertBeforeAuctionStartedMiningTime() public pure {
-        revert("TODO");
+    function test_timing_RevertBeforeAuctionStartedMiningTime() public {
+        (DutchAuction.Data memory data, bytes32 id, DutchAuction auction, uint256 startTime) = helper_miningTime();
+
+        // if before start time, should revert
+        vm.warp(startTime - 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IConditionalOrder.PollTryAtEpoch.selector, startTime, AUCTION_NOT_STARTED)
+        );
+        auction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
     }
 
     function test_timing_RevertAfterAuctionFinished() public {
@@ -119,8 +114,12 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         dutchAuction.getTradeableOrder(safe, address(0), bytes32(0), abi.encode(data), bytes(""));
     }
 
-    function test_timing_RevertAfterAuctionFinishedMiningTime() public pure {
-        revert("TODO");
+    function test_timing_RevertAfterAuctionFinishedMiningTime() public {
+        (DutchAuction.Data memory data, bytes32 id, DutchAuction auction, uint256 startTime) = helper_miningTime();
+        vm.warp(startTime + (data.numSteps * data.stepDuration));
+
+        vm.expectRevert(abi.encodeWithSelector(IConditionalOrder.PollNever.selector, AUCTION_ENDED));
+        auction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
     }
 
     function test_validation_RevertWhenSellTokenEqualsBuyToken() public {
@@ -176,6 +175,17 @@ contract DutchAuctionTest is BaseComposableCoWTest {
     function helper_runRevertingValidate(DutchAuction.Data memory data, string memory reason) internal {
         vm.expectRevert(abi.encodeWithSelector(IConditionalOrder.OrderNotValid.selector, reason));
         dutchAuction.validateData(abi.encode(data));
+    }
+
+    function helper_miningTime() internal returns (DutchAuction.Data memory, bytes32, DutchAuction, uint256) {
+        DutchAuction.Data memory data = helper_testData();
+        data.startTime = 0;
+        // an example mining time
+        uint32 startTime = 10_000;
+        bytes32 id = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
+
+        DutchAuction auction = new DutchAuction(mockCowCabinet(COMPOSABLE_COW, safe, id, bytes32(uint256(startTime))));
+        return (data, id, auction, startTime);
     }
 
     function helper_testData() internal view returns (DutchAuction.Data memory data) {
