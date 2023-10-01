@@ -66,7 +66,7 @@ The following `GPv2Order.Data` fields are calculated / auto-filled by the contra
 1. The primary method to mitigate replay attacks is for front-ends / users to ensure that the `GPv2VaultRelayer` only has spending allowance for `Data.sellAmount`. This is guaranteed to avoid settling subsequent orders in the series of limit orders.
 2. If the `GPv2VaultRelayer` has an infinite allowance for `Data.sellToken`, then subsequent orders in the series of limit orders may be settled (violating the intent of the order type). Setting `Data.buyTokenBalance` to the user's  balance of `buyToken` (at time of **conditional order creation**) mitigates this attack vector.
 
-**CAUTION**: If using (2) for replay mitigation, withdrawing / transfering `buyToken` from the receiver's address may invalidate the replay mitigation.
+**CAUTION**: If using (2) for replay mitigation, withdrawing / transferring `buyToken` from the receiver's address may invalidate the replay mitigation.
 
 ## Usage
 
