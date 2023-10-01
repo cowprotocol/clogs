@@ -206,7 +206,13 @@ contract DutchAuctionTest is BaseComposableCoWTest {
 
         // in the end-to-end, we can test replay protection by trying to settle again
         vm.warp(block.timestamp + 1);
-        settle(address(safe1), bob, order, sig, abi.encodeWithSelector(IConditionalOrder.PollNever.selector, AUCTION_FILLED));
+        settle(
+            address(safe1),
+            bob,
+            order,
+            sig,
+            abi.encodeWithSelector(IConditionalOrder.PollNever.selector, AUCTION_FILLED)
+        );
     }
 
     function helper_runRevertingValidate(DutchAuction.Data memory data, string memory reason) internal {
