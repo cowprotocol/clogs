@@ -184,10 +184,11 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         // create the order
         _create(address(safe1), params, false);
         // deal the sell token to the safe
-        deal(address(data.sellToken), address(safe1), data.sellAmount);
+        deal(address(data.sellToken), address(safe1), data.sellAmount * 2);
         // authorise the vault relayer to pull the sell token from the safe
         vm.prank(address(safe1));
-        data.sellToken.approve(address(relayer), data.sellAmount);
+        data.sellToken.approve(address(relayer), data.sellAmount * 2);
+        data.buyTokenBalance = data.sellToken.balanceOf(address(safe1));
 
         // make sure we're at the start of the auction
         vm.warp(data.startTime);
@@ -197,11 +198,15 @@ contract DutchAuctionTest is BaseComposableCoWTest {
 
         uint256 safe1BalanceBefore = data.sellToken.balanceOf(address(safe1));
 
-        settle(address(safe1), bob, order, sig, bytes4(0));
+        settle(address(safe1), bob, order, sig, hex"");
 
         uint256 safe1BalanceAfter = data.sellToken.balanceOf(address(safe1));
 
         assertEq(safe1BalanceAfter, safe1BalanceBefore - data.sellAmount);
+
+        // in the end-to-end, we can test replay protection by trying to settle again
+        vm.warp(block.timestamp + 1);
+        settle(address(safe1), bob, order, sig, abi.encodeWithSelector(IConditionalOrder.PollNever.selector, AUCTION_FILLED));
     }
 
     function helper_runRevertingValidate(DutchAuction.Data memory data, string memory reason) internal {
