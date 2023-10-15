@@ -147,11 +147,19 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         helper_runRevertingValidate(data, ERR_MIN_STEP_DISCOUNT);
     }
 
-    function test_validation_RevertWhenDiscountTooHigh() public {
+    function test_validation_RevertWhenStepDiscountTooHigh() public {
         DutchAuction.Data memory data = helper_testData();
         data.stepDiscount = 10000;
 
         helper_runRevertingValidate(data, ERR_MAX_STEP_DISCOUNT);
+    }
+
+    function test_validation_RevertWhenTotalDiscountTooHigh() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.stepDiscount = 5000;
+        data.numSteps = 3;
+
+        helper_runRevertingValidate(data, ERR_MAX_TOTAL_DISCOUNT);
     }
 
     function test_validation_RevertWhenStepsInsufficient() public {
