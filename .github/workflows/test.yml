@@ -25,10 +25,10 @@ jobs:
       - name: Run Forge build
         run: |
           forge --version
-          forge build --sizes
+          forge build --skip test
         id: build
 
       - name: Run Forge tests
         run: |
-          forge test -vvv --code-size-limit 0x8000
+          forge test -vvv
         id: test
