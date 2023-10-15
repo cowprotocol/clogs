@@ -25,7 +25,7 @@ contract DutchAuctionTest is BaseComposableCoWTest {
 
     function mockCowCabinet(address mock, address owner, bytes32 ctx, bytes32 retVal)
         internal
-        returns (ComposableCoW iface) 
+        returns (ComposableCoW iface)
     {
         iface = ComposableCoW(mock);
         vm.mockCall(mock, abi.encodeWithSelector(iface.cabinet.selector, owner, ctx), abi.encode(retVal));
@@ -76,47 +76,50 @@ contract DutchAuctionTest is BaseComposableCoWTest {
     }
 
     function test_startMiningTime() public {
-        DutchAuction.Data memory data = helper_testData();
-        data.startTime = 0;
-
-        uint32 startTimeInCtx = 10_000;
-        bytes32 id = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
-
-        dutchAuction = new DutchAuction(mockCowCabinet(COMPOSABLE_COW, safe, id, bytes32(uint256(startTimeInCtx))));
-
-        // if before start time, should revert
-        vm.warp(startTimeInCtx - 1);
-        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollTryAtEpoch.selector, startTimeInCtx, AUCTION_NOT_STARTED));
-        dutchAuction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
+        (DutchAuction.Data memory data, bytes32 id, DutchAuction auction, uint256 startTime) = helper_miningTime();
 
         // advance to the start of the dutch auction
-        vm.warp(startTimeInCtx);
+        vm.warp(startTime);
         // the following should no longer revert as the conditions are met
-        dutchAuction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
+        auction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
     }
 
     function test_timing_RevertBeforeAuctionStarted() public {
         DutchAuction.Data memory data = helper_testData();
-        vm.warp(data.startTime - 1);
 
-        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollTryAtEpoch.selector, data.startTime, AUCTION_NOT_STARTED));
+        // if before start time, should revert
+        vm.warp(data.startTime - 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IConditionalOrder.PollTryAtEpoch.selector, data.startTime, AUCTION_NOT_STARTED)
+        );
         dutchAuction.getTradeableOrder(safe, address(0), bytes32(0), abi.encode(data), bytes(""));
     }
 
     function test_timing_RevertBeforeAuctionStartedMiningTime() public {
-        revert("TODO");
+        (DutchAuction.Data memory data, bytes32 id, DutchAuction auction, uint256 startTime) = helper_miningTime();
+
+        // if before start time, should revert
+        vm.warp(startTime - 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IConditionalOrder.PollTryAtEpoch.selector, startTime, AUCTION_NOT_STARTED)
+        );
+        auction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
     }
 
     function test_timing_RevertAfterAuctionFinished() public {
         DutchAuction.Data memory data = helper_testData();
         vm.warp(data.startTime + (data.numSteps * data.stepDuration));
 
-        vm.expectRevert(abi.encodeWithSelector(DutchAuction.PollNever.selector, AUCTION_ENDED));
+        vm.expectRevert(abi.encodeWithSelector(IConditionalOrder.PollNever.selector, AUCTION_ENDED));
         dutchAuction.getTradeableOrder(safe, address(0), bytes32(0), abi.encode(data), bytes(""));
     }
 
     function test_timing_RevertAfterAuctionFinishedMiningTime() public {
-        revert("TODO");
+        (DutchAuction.Data memory data, bytes32 id, DutchAuction auction, uint256 startTime) = helper_miningTime();
+        vm.warp(startTime + (data.numSteps * data.stepDuration));
+
+        vm.expectRevert(abi.encodeWithSelector(IConditionalOrder.PollNever.selector, AUCTION_ENDED));
+        auction.getTradeableOrder(safe, address(0), id, abi.encode(data), bytes(""));
     }
 
     function test_validation_RevertWhenSellTokenEqualsBuyToken() public {
@@ -169,9 +172,57 @@ contract DutchAuctionTest is BaseComposableCoWTest {
         helper_runRevertingValidate(data, ERR_MIN_NUM_STEPS);
     }
 
+    function test_e2e_settle() public {
+        DutchAuction.Data memory data = helper_testData();
+        data.sellToken = token0;
+        data.buyToken = token1;
+
+        // create the order
+        IConditionalOrder.ConditionalOrderParams memory params =
+            super.createOrder(dutchAuction, keccak256("dutchAuction"), abi.encode(data));
+
+        // create the order
+        _create(address(safe1), params, false);
+        // deal the sell token to the safe
+        deal(address(data.sellToken), address(safe1), data.sellAmount * 2);
+        // authorise the vault relayer to pull the sell token from the safe
+        vm.prank(address(safe1));
+        data.sellToken.approve(address(relayer), data.sellAmount * 2);
+        data.buyTokenBalance = data.sellToken.balanceOf(address(safe1));
+
+        // make sure we're at the start of the auction
+        vm.warp(data.startTime);
+
+        (GPv2Order.Data memory order, bytes memory sig) =
+            composableCow.getTradeableOrderWithSignature(address(safe1), params, bytes(""), new bytes32[](0));
+
+        uint256 safe1BalanceBefore = data.sellToken.balanceOf(address(safe1));
+
+        settle(address(safe1), bob, order, sig, hex"");
+
+        uint256 safe1BalanceAfter = data.sellToken.balanceOf(address(safe1));
+
+        assertEq(safe1BalanceAfter, safe1BalanceBefore - data.sellAmount);
+
+        // in the end-to-end, we can test replay protection by trying to settle again
+        vm.warp(block.timestamp + 1);
+        settle(address(safe1), bob, order, sig, abi.encodeWithSelector(IConditionalOrder.PollNever.selector, AUCTION_FILLED));
+    }
+
     function helper_runRevertingValidate(DutchAuction.Data memory data, string memory reason) internal {
         vm.expectRevert(abi.encodeWithSelector(IConditionalOrder.OrderNotValid.selector, reason));
         dutchAuction.validateData(abi.encode(data));
+    }
+
+    function helper_miningTime() internal returns (DutchAuction.Data memory, bytes32, DutchAuction, uint256) {
+        DutchAuction.Data memory data = helper_testData();
+        data.startTime = 0;
+        // an example mining time
+        uint32 startTime = 10_000;
+        bytes32 id = 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
+
+        DutchAuction auction = new DutchAuction(mockCowCabinet(COMPOSABLE_COW, safe, id, bytes32(uint256(startTime))));
+        return (data, id, auction, startTime);
     }
 
     function helper_testData() internal view returns (DutchAuction.Data memory data) {

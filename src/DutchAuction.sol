@@ -30,23 +30,12 @@ string constant ERR_MIN_NUM_STEPS = "numSteps is lte 1";
 /// @dev total discount is greater than 10000
 string constant ERR_MAX_TOTAL_DISCOUNT = "total discount is gt 10000";
 
-
 /**
  * @title Simple Dutch Auction order type for CoW Protocol.
  * @author CoW Protocol Developers
  * @author kayibal (original code)
  */
 contract DutchAuction is BaseConditionalOrder {
-    // --- errors specific for polling
-    // Signal to the watch tower that polling should be attempted again.
-    error PollTryNextBlock(string reason);
-    // Signal to the watch tower that polling should be attempted again at a specific block number.
-    error PollTryAtBlock(uint256 blockNumber, string reason);
-    // Signal to the watch tower that polling should be attempted again at a specific epoch (unix timestamp).
-    error PollTryAtEpoch(uint256 timestamp, string reason);
-    // Signal to the watch tower that the conditional order should not be polled again (delete).
-    error PollNever(string reason);
-
     /// @dev `staticInput` data struct for dutch auctions
     struct Data {
         IERC20 sellToken;
@@ -158,7 +147,7 @@ contract DutchAuction is BaseConditionalOrder {
      * @param data `Data` struct containing the order parameters
      * @dev Throws if the order provided is not valid.
      */
-    function validateData(bytes memory data) external pure {
+    function validateData(bytes memory data) external pure override {
         _validateData(abi.decode(data, (Data)));
     }
 
