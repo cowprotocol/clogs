@@ -27,6 +27,8 @@ string constant ERR_MIN_STEP_DISCOUNT = "stepDiscount is zero";
 string constant ERR_MAX_STEP_DISCOUNT = "stepDiscount is gte 10000";
 /// @dev number of steps is less than or equal to 1
 string constant ERR_MIN_NUM_STEPS = "numSteps is lte 1";
+/// @dev total discount is greater than 10000
+string constant ERR_MAX_TOTAL_DISCOUNT = "total discount is gt 10000";
 
 
 /**
@@ -87,7 +89,7 @@ contract DutchAuction is BaseConditionalOrder {
 
         // `startTime` for the auction is either when the was mined or a specific start time
         if (data.startTime == 0) {
-            data.startTime = uint32(bytes4(composableCow.cabinet(owner, ctx)));
+            data.startTime = uint32(uint256(composableCow.cabinet(owner, ctx)));
         }
 
         // woah there! you're too early and the auction hasn't started. Come back later.
@@ -173,5 +175,6 @@ contract DutchAuction is BaseConditionalOrder {
         if (data.stepDiscount == 0) revert OrderNotValid(ERR_MIN_STEP_DISCOUNT);
         if (data.stepDiscount >= 10000) revert OrderNotValid(ERR_MAX_STEP_DISCOUNT);
         if (data.numSteps <= 1) revert OrderNotValid(ERR_MIN_NUM_STEPS);
+        if (data.numSteps * data.stepDiscount > 10000) revert OrderNotValid(ERR_MAX_TOTAL_DISCOUNT);
     }
 }
