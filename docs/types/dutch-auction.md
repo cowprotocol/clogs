@@ -6,6 +6,18 @@ A simple _dutch auction_ may be thought of as a series of _limit orders_ where t
 
 This contract simplifies the _dutch auction_ by not selling on a continually decreasing price curve, but instead selling at a fixed price for a fixed period of time before discounting further. This approximation makes replay protection more intuitive / easier to reason, as well as eliminating the need for additional logic to be implemented within the watch-tower.
 
+### Discount Formulae
+
+This contract implements a linear "stair-step" discount formulae, where the price decreases by a fixed amount every `stepDuration` seconds. This discount formulae is as follows:
+
+`minimumBuyAmount = startBuyAmount - (stepIndex * stepDiscount  * startBuyAmount / 10000)`
+
+Where:
+- `minimumBuyAmount` is the minimum amount of `buyToken` that must be paid to fill the order.
+- `startBuyAmount` is the initial amount of `buyToken` at the start of the auction.
+- `stepIndex` is the 0-index of the current step in the auction.
+- `stepDiscount` is the amount of discount to apply to the `startBuyAmount` every `stepDuration` seconds. This is measured in BPS (1/10000).
+
 ## Data Structure
 
 * **Uses Cabinet**: ✅
@@ -59,6 +71,7 @@ The following `GPv2Order.Data` fields are calculated / auto-filled by the contra
 * `numSteps` MUST be at least 2
 * `stepDuration` MUST not be 0 seconds, and SHOULD be at least 3 mins (CoW Protocol API requires orders being placed to have a validity of at least 2 mins)
 * `stepDiscount` MUST be at least 1 BPS (1/10000) and MUST be less than 10000 BPS (100%)
+* `stepDiscount * numSteps` MUST be less than 10000 BPS (100%)
 * Does NOT support partial fills
 
 ### Replay Mitigation
