@@ -15,6 +15,6 @@ contract Deploy is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy DutchAuction
-        new DutchAuction{salt: "v0.0.1"}(ComposableCoW(composableCow));
+        new DutchAuction{salt: ""}(ComposableCoW(composableCow));
     }
 }
