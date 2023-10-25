@@ -49,25 +49,25 @@ Using the provided test harness, one may write complete E2E tests that will simu
 ### Build
 
 ```shell
-$ forge build
+forge build
 ```
 
 ### Test
 
 ```shell
-$ forge test
+forge test
 ```
 
 ### Format
 
 ```shell
-$ forge fmt
+forge fmt
 ```
 
 ### Gas Snapshots
 
 ```shell
-$ forge snapshot
+forge snapshot
 ```
 
 ### Deploy
@@ -80,22 +80,22 @@ Before running the deployment script, you **MUST** set the following environment
 These can be set in a `.env` file in the root of the repository.
 
 ```shell
-$ source .env
-$ forge script script/Deploy.s.sol:Deploy --rpc-url <your_rpc_url>
+source .env
+forge script script/Deploy.s.sol:Deploy --rpc-url <your_rpc_url>
 ```
 
 ### Cast
 
 ```shell
-$ cast <subcommand>
+cast <subcommand>
 ```
 
 ### Help
 
 ```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+forge --help
+anvil --help
+cast --help
 ```
 
 ### Documentation
